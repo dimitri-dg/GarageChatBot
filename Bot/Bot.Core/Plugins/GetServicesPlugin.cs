@@ -1,6 +1,7 @@
 ﻿using Microsoft.SemanticKernel;
 using System.ComponentModel;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Bot.Core.Models;
 
@@ -19,16 +20,57 @@ namespace Bot.Core.Plugins
 
             _http = new HttpClient
             {
-                BaseAddress = new Uri(config["GarageApi:Url"])
+                BaseAddress = new Uri(config["GarageApi:Url"]
+                    ?? throw new ArgumentNullException("GarageApi:Url not configured"))
             };
         }
 
         [KernelFunction("get_services")]
-        [Description("Gets all available garage services.")]
-        public async Task<List<Service>> GetServicesAsync()
+        [Description("Gets all available garage services. Returns a JSON array of services with name, description, price, and duration.")]
+        public async Task<string> GetServicesAsync()
         {
-            return await _http.GetFromJsonAsync<List<Service>>("services")
-                   ?? new List<Service>();
+            try
+            {
+                var response = await _http.GetAsync("services");
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    return JsonSerializer.Serialize(new
+                    {
+                        error = true,
+                        message = $"Failed to get services. Status: {response.StatusCode}"
+                    });
+                }
+
+                var services = await response.Content.ReadFromJsonAsync<List<Service>>();
+
+                if (services == null || !services.Any())
+                {
+                    return JsonSerializer.Serialize(new
+                    {
+                        services = new List<Service>(),
+                        message = "No services available at the moment."
+                    });
+                }
+
+                return JsonSerializer.Serialize(new { services });
+            }
+            catch (HttpRequestException ex)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    error = true,
+                    message = $"Cannot connect to Garage API: {ex.Message}"
+                });
+            }
+            catch (Exception ex)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    error = true,
+                    message = $"Error getting services: {ex.Message}"
+                });
+            }
         }
     }
 }

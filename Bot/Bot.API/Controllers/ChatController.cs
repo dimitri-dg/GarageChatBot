@@ -1,4 +1,7 @@
 ﻿using System.Text.Json;
+using Bot.API.AdaptiveCardBuilders;
+using Bot.API.KernelResponses;
+using Bot.API.Models;
 using Bot.Core;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,10 +12,12 @@ namespace Bot.API.Controllers
     public class ChatController : ControllerBase
     {
         private readonly KernelService _kernelService;
+        private readonly ILogger<ChatController> _logger;
 
-        public ChatController(KernelService kernelService)
+        public ChatController(KernelService kernelService, ILogger<ChatController> logger)
         {
             _kernelService = kernelService;
+            _logger = logger;
         }
 
         [HttpPost]
@@ -21,34 +26,92 @@ namespace Bot.API.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var kernelReply = await _kernelService.GetChatResponseAsync(
-                request.SessionId, request.Message);
+            try
+            {
+                _logger.LogInformation($"Received message: {request.Message}");
 
-            string reply;
+                var kernelReply = await _kernelService.GetChatResponseAsync(
+                    request.SessionId, request.Message);
 
-            // --- JSON direct naar cards mappen ---
-            if (HasKey(kernelReply, "cars"))
-            {
-                var data = JsonSerializer.Deserialize<CarsResponse>(kernelReply);
-                reply = CarsCardBuilder.Build(data);
-            }
-            else if (HasKey(kernelReply, "services"))
-            {
-                var data = JsonSerializer.Deserialize<ServicesResponse>(kernelReply);
-                reply = ServicesCardBuilder.Build(data);
-            }
-            else if (HasKey(kernelReply, "appointment"))
-            {
-                var data = JsonSerializer.Deserialize<AppointmentResponse>(kernelReply);
-                reply = AppointmentCardBuilder.Build(data);
-            }
-            else
-            {
-                // gewone tekst
-                reply = kernelReply;
-            }
+                _logger.LogInformation($"Kernel reply (first 200 chars): {kernelReply.Substring(0, Math.Min(200, kernelReply.Length))}");
 
-            return Ok(new ChatResponseDto { Reply = reply });
+                string reply;
+
+                // Check if it's valid JSON first
+                if (!IsValidJson(kernelReply))
+                {
+                    _logger.LogInformation("Reply is plain text, not JSON");
+                    reply = kernelReply;
+                    return Ok(new ChatResponseDto { Reply = reply });
+                }
+
+                // --- JSON direct naar cards mappen ---
+                if (HasKey(kernelReply, "cars"))
+                {
+                    _logger.LogInformation("Building cars card");
+                    var data = JsonSerializer.Deserialize<CarsResponse>(kernelReply);
+                    reply = CarsCardBuilder.Build(data);
+                }
+                else if (HasKey(kernelReply, "services"))
+                {
+                    _logger.LogInformation("Building services card");
+                    var data = JsonSerializer.Deserialize<ServicesResponse>(kernelReply);
+                    reply = ServicesCardBuilder.Build(data);
+                }
+                else if (HasKey(kernelReply, "appointment"))
+                {
+                    _logger.LogInformation("Building appointment card");
+                    var data = JsonSerializer.Deserialize<AppointmentResponse>(kernelReply);
+                    reply = AppointmentCardBuilder.Build(data);
+                }
+                else
+                {
+                    // JSON maar geen bekende structuur, stuur als tekst
+                    _logger.LogInformation("JSON without known structure, sending as text");
+                    reply = kernelReply;
+                }
+
+                return Ok(new ChatResponseDto { Reply = reply });
+            }
+            catch (JsonException jsonEx)
+            {
+                _logger.LogError($"JSON parsing error: {jsonEx.Message}");
+                return Ok(new ChatResponseDto
+                {
+                    Reply = "Sorry, ik kreeg een onverwacht antwoord. Probeer het opnieuw."
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error in ChatController: {ex.Message}");
+                _logger.LogError($"Stack trace: {ex.StackTrace}");
+                return StatusCode(500, new
+                {
+                    error = ex.Message
+                });
+            }
+        }
+
+        private bool IsValidJson(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            text = text.Trim();
+
+            // Quick check: JSON moet beginnen met { of [
+            if (!text.StartsWith("{") && !text.StartsWith("["))
+                return false;
+
+            try
+            {
+                using var doc = JsonDocument.Parse(text);
+                return true;
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
         }
 
         private bool HasKey(string result, string key)
@@ -58,8 +121,9 @@ namespace Bot.API.Controllers
                 using var doc = JsonDocument.Parse(result);
                 return doc.RootElement.TryGetProperty(key, out _);
             }
-            catch
+            catch (JsonException ex)
             {
+                _logger.LogWarning($"Failed to parse as JSON in HasKey: {ex.Message}");
                 return false;
             }
         }

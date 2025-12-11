@@ -1,9 +1,9 @@
 ﻿using Microsoft.SemanticKernel;
 using System.ComponentModel;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Bot.Core.Models;
-
 
 namespace Bot.Core.Plugins
 {
@@ -20,22 +20,53 @@ namespace Bot.Core.Plugins
 
             _http = new HttpClient
             {
-                BaseAddress = new Uri(config["GarageApi:Url"])
+                BaseAddress = new Uri(config["GarageApi:Url"]
+                    ?? throw new ArgumentNullException("GarageApi:Url not configured"))
             };
         }
 
         [KernelFunction("add_car")]
-        [Description("Adds a new car to the system. Returns the created car.")]
-        public async Task<Car?> AddCarAsync(
+        [Description("Adds a new car to the system. Returns the created car as JSON.")]
+        public async Task<string> AddCarAsync(
             [Description("Brand of the car")] string brand,
             [Description("Model of the car")] string model,
             [Description("Year of build")] int year,
             [Description("License plate")] string licensePlate)
         {
-            var body = new { brand, model, year, licensePlate };
-            var response = await _http.PostAsJsonAsync("cars", body);
+            try
+            {
+                var body = new { brand, model, year, licensePlate };
+                var response = await _http.PostAsJsonAsync("cars", body);
 
-            return await response.Content.ReadFromJsonAsync<Car>();
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    return JsonSerializer.Serialize(new
+                    {
+                        error = true,
+                        message = $"Failed to add car. Status: {response.StatusCode}. Details: {errorContent}"
+                    });
+                }
+
+                var car = await response.Content.ReadFromJsonAsync<Car>();
+                return JsonSerializer.Serialize(new { car });
+            }
+            catch (HttpRequestException ex)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    error = true,
+                    message = $"Cannot connect to Garage API: {ex.Message}"
+                });
+            }
+            catch (Exception ex)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    error = true,
+                    message = $"Error adding car: {ex.Message}"
+                });
+            }
         }
     }
 }

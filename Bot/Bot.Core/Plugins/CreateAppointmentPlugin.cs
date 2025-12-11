@@ -1,6 +1,7 @@
 ﻿using Microsoft.SemanticKernel;
 using System.ComponentModel;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Bot.Core.Models;
 
@@ -19,24 +20,64 @@ namespace Bot.Core.Plugins
 
             _http = new HttpClient
             {
-                BaseAddress = new Uri(config["GarageApi:Url"])
+                BaseAddress = new Uri(config["GarageApi:Url"]
+                    ?? throw new ArgumentNullException("GarageApi:Url not configured"))
             };
         }
 
         [KernelFunction("create_appointment")]
-        [Description("Creates a new garage appointment.")]
-        public async Task<Appointment?> CreateAsync(
-            int carId,
-            int serviceId,
-            DateTime date,
-            string customerName,
-            string customerEmail,
-            string? notes)
+        [Description("Creates a new garage appointment. Requires carId, serviceId, appointmentDate, customerName, customerEmail, and optional notes. Returns the created appointment as JSON.")]
+        public async Task<string> CreateAsync(
+            [Description("ID of the car")] int carId,
+            [Description("ID of the service")] int serviceId,
+            [Description("Appointment date and time (format: yyyy-MM-ddTHH:mm:ss)")] DateTime appointmentDate,
+            [Description("Customer name")] string customerName,
+            [Description("Customer email")] string customerEmail,
+            [Description("Special notes or requests (optional)")] string? specialNotes = null)
         {
-            var body = new { carId, serviceId, date, customerName, customerEmail, notes };
+            try
+            {
+                var body = new
+                {
+                    carId,
+                    serviceId,
+                    appointmentDate,
+                    customerName,
+                    customerEmail,
+                    specialNotes
+                };
 
-            var response = await _http.PostAsJsonAsync("appointments", body);
-            return await response.Content.ReadFromJsonAsync<Appointment>();
+                var response = await _http.PostAsJsonAsync("appointments", body);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    return JsonSerializer.Serialize(new
+                    {
+                        error = true,
+                        message = $"Failed to create appointment. Status: {response.StatusCode}. Details: {errorContent}"
+                    });
+                }
+
+                var appointment = await response.Content.ReadFromJsonAsync<Appointment>();
+                return JsonSerializer.Serialize(new { appointment });
+            }
+            catch (HttpRequestException ex)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    error = true,
+                    message = $"Cannot connect to Garage API: {ex.Message}"
+                });
+            }
+            catch (Exception ex)
+            {
+                return JsonSerializer.Serialize(new
+                {
+                    error = true,
+                    message = $"Error creating appointment: {ex.Message}"
+                });
+            }
         }
     }
 }
