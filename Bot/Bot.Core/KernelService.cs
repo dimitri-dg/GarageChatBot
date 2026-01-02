@@ -94,6 +94,33 @@ Your tasks:
   },
   ""question"": ""Kan ik nog iets anders voor je doen?""
 }
+5. WHEN LISTING ALL APPOINTMENTS (user asks ""toon alle afspraken"", ""overzicht afspraken""):
+{
+  ""answer"": ""Hier is een overzicht van alle afspraken:"",
+  ""appointments"": [
+    {
+      ""id"": 1,
+      ""date"": ""2026-01-06T13:00:00"",
+      ""status"": ""Scheduled"",
+      ""car"": {
+        ""id"": 1,
+        ""brand"": ""Citroen"",
+        ""model"": ""C1"",
+        ""year"": 2016,
+        ""licensePlate"": ""1NIG475"",
+        ""imageUrl"": null
+      },
+      ""service"": {
+        ""id"": 2,
+        ""name"": ""Groot onderhoud"",
+        ""description"": ""Volledige onderhoudsbeurt"",
+        ""price"": 150.00,
+        ""durationMinutes"": 120
+      }
+    }
+  ],
+  ""question"": ""Wil je een afspraak wijzigen of annuleren?""
+}
 
 ### CRITICAL RULES ###
 - ALWAYS include ""answer"", the data object (cars/car/services/appointment), and ""question""

@@ -28,7 +28,7 @@ builder.Services.AddSingleton<Kernel>(sp =>
     kernel.Plugins.AddFromType<CreateAppointmentPlugin>("CreateAppointmentPlugin");
     kernel.Plugins.AddFromType<ModifyAppointmentPlugin>("ModifyAppointmentPlugin");
     kernel.Plugins.AddFromType<CancelAppointmentPlugin>("CancelAppointmentPlugin");
-  
+    kernel.Plugins.AddFromType<AppointmentsListPlugin>("AppointmentsListPlugin");
 
     return kernel;
 });

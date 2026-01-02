@@ -71,6 +71,11 @@ namespace Bot.API.Controllers
                     var data = JsonSerializer.Deserialize<AppointmentResponse>(kernelReply);
                     reply = AppointmentCardBuilder.Build(data);
                 }
+                else if (HasKey(kernelReply, "appointments"))
+                {
+                    var data = JsonSerializer.Deserialize<AppointmentsListResponse>(kernelReply);
+                    reply = AppointmentsListCardBuilder.Build(data);
+                }
                 else
                 {
                     // JSON maar geen bekende structuur, stuur als tekst
