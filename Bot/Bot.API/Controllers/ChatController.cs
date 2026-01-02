@@ -52,6 +52,13 @@ namespace Bot.API.Controllers
                     var data = JsonSerializer.Deserialize<CarsResponse>(kernelReply);
                     reply = CarsCardBuilder.Build(data);
                 }
+                else if (HasKey(kernelReply, "car") && !HasKey(kernelReply, "appointment"))
+                {
+                    // Single car confirmation (when adding a car)
+                    _logger.LogInformation("Building car confirmation card");
+                    var data = JsonSerializer.Deserialize<CarConfirmationResponse>(kernelReply);
+                    reply = CarConfirmationCardBuilder.Build(data.Answer, data.Car, data.Question);
+                }
                 else if (HasKey(kernelReply, "services"))
                 {
                     _logger.LogInformation("Building services card");
@@ -71,7 +78,13 @@ namespace Bot.API.Controllers
                     reply = kernelReply;
                 }
 
-                return Ok(new ChatResponseDto { Reply = reply });
+                var response = new ChatResponseDto()
+                {
+                    Reply = reply
+                };
+
+                return Ok(response);
+
             }
             catch (JsonException jsonEx)
             {
@@ -99,7 +112,6 @@ namespace Bot.API.Controllers
 
             text = text.Trim();
 
-            // Quick check: JSON moet beginnen met { of [
             if (!text.StartsWith("{") && !text.StartsWith("["))
                 return false;
 
