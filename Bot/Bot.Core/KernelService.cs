@@ -14,6 +14,11 @@ namespace Bot.Core
     {
         private readonly Kernel _kernel;
         private readonly ConcurrentDictionary<string, ChatHistory> _sessions = new();
+        private readonly ConcurrentDictionary<string, DateTime> _sessionLastAccess = new();
+
+        // Session expires after 30 minutes of inactivity
+        private readonly TimeSpan _sessionTimeout = TimeSpan.FromMinutes(30);
+        private const int MAX_HISTORY_COUNT = 20; // Maximum messages in history
 
         // ⚠️ DIT IS DE SYSTEM PROMPT – HEEL BELANGRIJK
         private readonly string systemPrompt = @"
@@ -71,7 +76,7 @@ Your tasks:
     ""id"": 1,
     ""carId"": 1,
     ""serviceId"": 2,
-    ""date"": ""2026-01-06T13:00:00"",
+    ""appointmentDate"": ""2026-01-06T13:00:00"",
     ""customerName"": ""Kris Kwanten"",
     ""customerEmail"": ""kris.kwanten@hotmail.com"",
     ""notes"": ""geen speciale wensen"",
@@ -100,7 +105,7 @@ Your tasks:
   ""appointments"": [
     {
       ""id"": 1,
-      ""date"": ""2026-01-06T13:00:00"",
+      ""appointmentDate"": ""2026-01-06T13:00:00"",
       ""status"": ""Scheduled"",
       ""car"": {
         ""id"": 1,
@@ -132,7 +137,7 @@ Your tasks:
 When user wants to make an appointment:
 1. Call get_cars to get the car details (you need the carId AND the full car object)
 2. Call get_services to get the service details (you need the serviceId AND the full service object)
-3. Call create_appointment with carId, serviceId, date, customerName, customerEmail, notes
+3. Call create_appointment with carId, serviceId, appointmentDate, customerName, customerEmail, notes
 4. When plugin succeeds, create the JSON card with BOTH the appointment data AND the full car and service objects
 
 ### FOR ALL OTHER CONVERSATION ###
@@ -145,9 +150,10 @@ Reply in normal Dutch text (no JSON):
 
 ### IMPORTANT ###
 - When plugins return errors, respond in normal text (not JSON)
-- Only use JSON for the 4 specific cases listed above
+- Only use JSON for the specific cases listed above
 - Always be helpful and friendly in Dutch
 ";
+
         public KernelService(Kernel kernel)
         {
             _kernel = kernel;
@@ -155,6 +161,9 @@ Reply in normal Dutch text (no JSON):
 
         public async Task<string> GetChatResponseAsync(string sessionId, string userInput)
         {
+            // Clean up expired sessions before processing
+            CleanupExpiredSessions();
+
             // Get the chat completion model
             var chat = _kernel.GetRequiredService<IChatCompletionService>();
 
@@ -164,11 +173,36 @@ Reply in normal Dutch text (no JSON):
             if (_sessions.ContainsKey(sessionId))
             {
                 history = _sessions[sessionId];
+                _sessionLastAccess[sessionId] = DateTime.UtcNow;
+
+                // Prevent history from growing too large
+                if (history.Count > MAX_HISTORY_COUNT)
+                {
+                    Console.WriteLine($"[KernelService] Session {sessionId} history too large ({history.Count}), trimming to {MAX_HISTORY_COUNT}");
+                    var recentMessages = history.Skip(history.Count - MAX_HISTORY_COUNT).ToList();
+                    history = new ChatHistory();
+
+                    // Re-add system message
+                    var today = DateTime.Now.ToString("dddd, dd MMMM yyyy");
+                    history.AddSystemMessage(@$"
+{systemPrompt}
+- Today is {today}.");
+
+                    // Add recent conversation history (excluding the old system message)
+                    foreach (var msg in recentMessages.Where(m => m.Role != AuthorRole.System))
+                    {
+                        history.Add(msg);
+                    }
+
+                    _sessions[sessionId] = history;
+                }
             }
             else
             {
+                Console.WriteLine($"[KernelService] Creating new session {sessionId}");
                 history = new ChatHistory();
                 _sessions[sessionId] = history;
+                _sessionLastAccess[sessionId] = DateTime.UtcNow;
 
                 var today = DateTime.Now.ToString("dddd, dd MMMM yyyy");
 
@@ -197,6 +231,36 @@ Reply in normal Dutch text (no JSON):
             history.AddAssistantMessage(response.Content);
 
             return response.Content ?? "No answer.";
+        }
+
+        private void CleanupExpiredSessions()
+        {
+            var now = DateTime.UtcNow;
+            var expiredSessions = _sessionLastAccess
+                .Where(kvp => now - kvp.Value > _sessionTimeout)
+                .Select(kvp => kvp.Key)
+                .ToList();
+
+            foreach (var sessionId in expiredSessions)
+            {
+                _sessions.TryRemove(sessionId, out _);
+                _sessionLastAccess.TryRemove(sessionId, out _);
+                Console.WriteLine($"[KernelService] Removed expired session {sessionId}");
+            }
+        }
+
+        public void ClearSession(string sessionId)
+        {
+            if (_sessions.TryRemove(sessionId, out _))
+            {
+                _sessionLastAccess.TryRemove(sessionId, out _);
+                Console.WriteLine($"[KernelService] Manually cleared session {sessionId}");
+            }
+        }
+
+        public int GetActiveSessionCount()
+        {
+            return _sessions.Count;
         }
     }
 }

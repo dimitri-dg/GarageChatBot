@@ -27,7 +27,7 @@ public class AppointmentsPlugin
             {
                 car = $"{a.Car.Brand} {a.Car.Model}",
                 service = a.Service.Name,
-                date = a.Date.ToString("dd/MM/yyyy HH:mm"),
+                date = a.AppointmentDate.ToString("dd/MM/yyyy HH:mm"),
                 status = a.Status
             }),
             question = "Would you like to modify or cancel an appointment?"

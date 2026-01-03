@@ -84,7 +84,7 @@ namespace Bot.API.AdaptiveCardBuilders
                             {
                                 new { title = "Car:", value = appt.Car != null ? $"{appt.Car.Brand} {appt.Car.Model}" : "" },
                                 new { title = "Service:", value = appt.Service?.Name ?? "" },
-                                new { title = "Date:", value = appt.Date.ToString("dd/MM/yyyy HH:mm") },
+                                new { title = "Date:", value = appt.AppointmentDate.ToString("dd/MM/yyyy HH:mm") },
                                 new { title = "Status:", value = appt.Status },
                                 new { title = "Notes:", value = appt.Notes }
                             }

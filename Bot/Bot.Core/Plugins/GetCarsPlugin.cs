@@ -45,7 +45,12 @@ namespace Bot.Core.Plugins
                 var cars = await response.Content.ReadFromJsonAsync<List<Car>>();
 
                 // Return als JSON string
-                return JsonSerializer.Serialize(new { cars });
+                return JsonSerializer.Serialize(new
+                {
+                    answer = "Hier zijn alle geregistreerde auto's:",
+                    cars,
+                    question = "Welke auto wil je selecteren?"
+                });
             }
             catch (HttpRequestException ex)
             {

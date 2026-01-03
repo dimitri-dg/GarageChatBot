@@ -5,6 +5,8 @@ using Microsoft.SemanticKernel;
 var builder = WebApplication.CreateBuilder(args);
 
 //  Semantic kernel setup
+builder.Services.AddHttpClient();
+
 builder.Services.AddSingleton<Kernel>(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();

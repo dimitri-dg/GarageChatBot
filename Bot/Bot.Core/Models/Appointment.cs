@@ -19,8 +19,10 @@ namespace Bot.Core.Models
         public int ServiceId { get; set; }
 
         // BELANGRIJK: Gebruik "date" zoals de werkende bot!
-        [JsonPropertyName("date")]
-        public DateTime Date { get; set; }
+        [JsonPropertyName("appointmentDate")]
+        public DateTime AppointmentDate { get; set; }
+        [JsonIgnore]
+        public DateTime Date => AppointmentDate;
 
         [JsonPropertyName("customerName")]
         public string CustomerName { get; set; } = string.Empty;

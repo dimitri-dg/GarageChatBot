@@ -48,12 +48,18 @@ namespace Bot.Core.Plugins
                 {
                     return JsonSerializer.Serialize(new
                     {
+                        answer = "Er zijn momenteel geen services beschikbaar.",
                         services = new List<Service>(),
-                        message = "No services available at the moment."
+                        question = "Kan ik je ergens anders mee helpen?"
                     });
                 }
 
-                return JsonSerializer.Serialize(new { services });
+                return JsonSerializer.Serialize(new
+                {
+                    answer = "Beschikbare services:",
+                    services,
+                    question = "Welke service heb je nodig?"
+                });
             }
             catch (HttpRequestException ex)
             {

@@ -2,6 +2,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Bot.Core.Models;
+using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
 
 namespace Bot.Core.Plugins
@@ -10,9 +11,18 @@ namespace Bot.Core.Plugins
     {
         private readonly HttpClient _http;
 
-        public AppointmentsListPlugin(HttpClient http)
+        public AppointmentsListPlugin()
         {
-            _http = http;
+            var config = new ConfigurationBuilder()
+                .SetBasePath(AppContext.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: false)
+                .Build();
+
+            _http = new HttpClient
+            {
+                BaseAddress = new Uri(config["GarageApi:Url"]
+                    ?? throw new ArgumentNullException("GarageApi:Url not configured"))
+            };
         }
 
         [KernelFunction]

@@ -37,6 +37,23 @@ namespace Bot.Core.Plugins
         {
             try
             {
+                // First, get the car details
+                var carResponse = await _http.GetAsync($"cars/{carId}");
+                Car? car = null;
+                if (carResponse.IsSuccessStatusCode)
+                {
+                    car = await carResponse.Content.ReadFromJsonAsync<Car>();
+                }
+
+                // Then, get the service details
+                var serviceResponse = await _http.GetAsync($"services/{serviceId}");
+                Service? service = null;
+                if (serviceResponse.IsSuccessStatusCode)
+                {
+                    service = await serviceResponse.Content.ReadFromJsonAsync<Service>();
+                }
+
+                // Create the appointment
                 var body = new
                 {
                     carId,
@@ -60,7 +77,23 @@ namespace Bot.Core.Plugins
                 }
 
                 var appointment = await response.Content.ReadFromJsonAsync<Appointment>();
-                return JsonSerializer.Serialize(new { appointment });
+
+                // Manually set the car and service objects if they were fetched successfully
+                if (appointment != null)
+                {
+                    if (car != null)
+                        appointment.Car = car;
+                    if (service != null)
+                        appointment.Service = service;
+                }
+
+                // Return complete JSON structure for card with all necessary data
+                return JsonSerializer.Serialize(new
+                {
+                    answer = "Afspraak bevestigd!",
+                    appointment,
+                    question = "Kan ik nog iets anders voor je doen?"
+                });
             }
             catch (HttpRequestException ex)
             {

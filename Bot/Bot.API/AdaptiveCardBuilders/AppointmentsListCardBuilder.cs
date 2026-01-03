@@ -56,7 +56,7 @@ namespace Bot.API.AdaptiveCardBuilders
                                     },
                                     new {
                                         title = "Date:",
-                                        value = appt.Date.ToString("dd/MM/yyyy HH:mm")
+                                        value = appt.AppointmentDate.ToString("dd/MM/yyyy HH:mm")
                                     },
                                     new {
                                         title = "Status:",

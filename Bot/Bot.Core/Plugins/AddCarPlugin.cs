@@ -49,7 +49,12 @@ namespace Bot.Core.Plugins
                 }
 
                 var car = await response.Content.ReadFromJsonAsync<Car>();
-                return JsonSerializer.Serialize(new { car });
+                return JsonSerializer.Serialize(new
+                {
+                    answer = "De nieuwe auto is succesvol aangemaakt!",
+                    car,
+                    question = "Kan ik nog iets anders voor je doen?"
+                });
             }
             catch (HttpRequestException ex)
             {
